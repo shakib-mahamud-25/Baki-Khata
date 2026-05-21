@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Baki Khata — Hall Expense Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root {
+    --bg:#f5f3ef;--surface:#ffffff;--surface2:#f0ede8;--border:#e2ddd6;
+    --navy:#1a2744;--navy2:#253460;--accent:#e8834a;--accent2:#f5a572;
+    --green:#2d8c5e;--green-bg:#e8f5ee;--red:#c0392b;--red-bg:#fdecea;
+    --blue:#1a6fa8;--blue-bg:#e8f2fa;--yellow:#c9821a;--yellow-bg:#fef6e4;
+    --amber:#92400e;--amber-bg:#fef3c7;--amber-border:#fcd34d;
+    --text:#1a1a2e;--text2:#5a5a72;--text3:#9898b0;
+    --shadow:0 2px 12px rgba(26,39,68,0.08);--shadow-lg:0 8px 32px rgba(26,39,68,0.14);
+    --radius:16px;--radius-sm:10px;--transition:0.2s cubic-bezier(0.4,0,0.2,1);
+  }
+  [data-theme="dark"]{
+    --bg:#0f1117;--surface:#1c1f2a;--surface2:#252836;--border:#2e3245;
+    --navy:#4a7cdc;--navy2:#6190e8;--text:#e8e8f5;--text2:#a0a0c0;--text3:#606080;
+    --green-bg:#0d2e1f;--red-bg:#2e0d0a;--blue-bg:#0d1e2e;--yellow-bg:#2e1e0a;
+    --amber-bg:#2e1e05;--amber-border:#92400e;
+    --shadow:0 2px 12px rgba(0,0,0,0.3);--shadow-lg:0 8px 32px rgba(0,0,0,0.4);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background var(--transition),color var(--transition);display:flex;flex-direction:column;}
+  h1,h2,h3,h4{font-family:'Sora',sans-serif;}
+
+  /* ── PIN Screen ── */
+  #pin-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:24px;}
+  #pin-screen.hidden{display:none;}
+  .pin-logo{font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;letter-spacing:-0.5px;}
+  .pin-logo span{color:var(--accent);}
+  .pin-subtitle{color:rgba(255,255,255,0.6);font-size:.9rem;text-align:center;}
+  .pin-dots{display:flex;gap:14px;margin:8px 0;}
+  .pin-dot{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.2);transition:background .15s;}
+  .pin-dot.filled{background:var(--accent);}
+  .pin-keypad{display:grid;grid-template-columns:repeat(3,72px);gap:12px;}
+  .pin-key{height:64px;border-radius:var(--radius-sm);border:none;background:rgba(255,255,255,0.08);color:#fff;font-family:'Sora',sans-serif;font-size:1.4rem;font-weight:600;cursor:pointer;transition:background var(--transition),transform .1s;}
+  .pin-key:hover{background:rgba(255,255,255,0.15);}
+  .pin-key:active{transform:scale(.94);}
+  .pin-key.del{font-size:1rem;}
+  .pin-key.zero{grid-column:2;}
+  .pin-error{color:#ff6b6b;font-size:.85rem;min-height:1.2em;text-align:center;}
+  .pin-setup-label{color:rgba(255,255,255,0.7);font-size:.85rem;text-align:center;max-width:240px;}
+
+  /* ── Top Bar ── */
+  #topbar{position:sticky;top:0;z-index:100;background:var(--navy);padding:0 16px;display:flex;align-items:center;gap:12px;height:60px;box-shadow:0 2px 16px rgba(26,39,68,0.18);}
+  .tb-logo{font-family:'Sora',sans-serif;font-weight:800;font-size:1.1rem;color:#fff;letter-spacing:-.3px;white-space:nowrap;}
+  .tb-logo span{color:var(--accent);}
+  .tb-search{flex:1;position:relative;}
+  .tb-search input{width:100%;padding:8px 12px 8px 36px;border-radius:8px;border:none;background:rgba(255,255,255,0.1);color:#fff;font-family:'DM Sans',sans-serif;font-size:.9rem;outline:none;}
+  .tb-search input::placeholder{color:rgba(255,255,255,0.4);}
+  .tb-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5;}
+  .tb-actions{display:flex;gap:8px;}
+  .tb-btn{background:rgba(255,255,255,0.1);border:none;color:#fff;border-radius:8px;padding:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background var(--transition);}
+  .tb-btn:hover{background:rgba(255,255,255,0.2);}
+
+  /* ── Storage Warning ── */
+  #storage-warning{background:var(--amber-bg);border-bottom:2px solid var(--amber-border);padding:10px 16px;display:flex;align-items:flex-start;gap:10px;}
+  .sw-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px;}
+  .sw-text{font-size:.8rem;line-height:1.5;color:var(--amber);}
+  .sw-text strong{font-weight:700;display:block;margin-bottom:2px;font-size:.82rem;}
+  [data-theme="dark"] .sw-text{color:#fbbf24;}
+  [data-theme="dark"] #storage-warning{background:#2e1e05;border-color:#92400e;}
+
+  /* ── Balance Banner ── */
+  #balance-banner{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  #balance-banner::-webkit-scrollbar{display:none;}
+  .bb-card{background:var(--surface2);border-radius:var(--radius-sm);padding:10px 16px;min-width:130px;flex-shrink:0;}
+  .bb-label{font-size:.7rem;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;}
+  .bb-value{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;}
+  .bb-value.red{color:var(--red);}
+  .bb-value.green{color:var(--green);}
+  .bb-value.blue{color:var(--blue);}
+
+  /* ── Main ── */
+  #main{padding:16px;max-width:680px;margin:0 auto;width:100%;flex:1;}
+
+  /* ── Month Filter ── */
+  #month-bar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+  .month-select{padding:8px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:.875rem;outline:none;cursor:pointer;}
+  .month-select:focus{border-color:var(--navy);}
+  .filter-tag{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:.82rem;cursor:pointer;transition:all var(--transition);}
+  .filter-tag.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+  /* ── Action Bar ── */
+  #action-bar{display:flex;gap:10px;margin-bottom:20px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 18px;border-radius:var(--radius-sm);border:none;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer;transition:all var(--transition);}
+  .btn-primary{background:var(--navy);color:#fff;}
+  .btn-primary:hover{background:var(--navy2);}
+  .btn-accent{background:var(--accent);color:#fff;}
+  .btn-accent:hover{background:var(--accent2);}
+  .btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text2);}
+  .btn-outline:hover{border-color:var(--navy);color:var(--navy);}
+  .btn-danger{background:var(--red-bg);color:var(--red);border:1.5px solid transparent;}
+  .btn-danger:hover{background:var(--red);color:#fff;}
+  .btn-green{background:var(--green-bg);color:var(--green);border:1.5px solid transparent;}
+  .btn-green:hover{background:var(--green);color:#fff;}
+  .btn-full{width:100%;}
+
+  /* ── Store Cards ── */
+  .store-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden;transition:box-shadow var(--transition);border:1px solid var(--border);}
+  .store-card:hover{box-shadow:var(--shadow-lg);}
+  .store-header{padding:16px 18px;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;}
+  .store-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:700;font-size:1.1rem;color:#fff;flex-shrink:0;}
+  .store-info{flex:1;min-width:0;}
+  .store-name{font-family:'Sora',sans-serif;font-weight:700;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .store-meta{font-size:.78rem;color:var(--text3);margin-top:2px;}
+  .store-balance-pill{padding:5px 12px;border-radius:20px;font-family:'Sora',sans-serif;font-size:.82rem;font-weight:700;flex-shrink:0;}
+  .pill-due{background:var(--red-bg);color:var(--red);}
+  .pill-paid{background:var(--green-bg);color:var(--green);}
+  .store-chevron{color:var(--text3);transition:transform var(--transition);flex-shrink:0;}
+  .store-card.open .store-chevron{transform:rotate(180deg);}
+  .store-body{display:none;border-top:1px solid var(--border);}
+  .store-card.open .store-body{display:block;}
+
+  /* Store Stats */
+  .store-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);}
+  .stat-box{background:var(--surface2);padding:12px;text-align:center;}
+  .stat-label{font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
+  .stat-value{font-family:'Sora',sans-serif;font-weight:700;font-size:.95rem;}
+
+  /* Store Action Buttons — full width grid */
+  .store-actions{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .store-actions.no-pay{grid-template-columns:1fr 1fr;}
+  .store-action-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 10px;border-radius:var(--radius-sm);border:none;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;transition:all var(--transition);width:100%;}
+  .sab-expense{background:var(--navy);color:#fff;}
+  .sab-expense:hover{background:var(--navy2);}
+  .sab-pay{background:var(--green-bg);color:var(--green);border:1.5px solid transparent;}
+  .sab-pay:hover{background:var(--green);color:#fff;}
+  .sab-pdf{background:var(--blue-bg);color:var(--blue);border:1.5px solid transparent;}
+  .sab-pdf:hover{background:var(--blue);color:#fff;}
+  .sab-del{background:var(--red-bg);color:var(--red);border:1.5px solid transparent;}
+  .sab-del:hover{background:var(--red);color:#fff;}
+  /* When pay button is hidden, span expense full width */
+  .store-actions.no-pay .sab-expense{grid-column:1 / -1;}
+
+  /* Expense/Payment list */
+  .ledger-tabs{display:flex;border-bottom:1px solid var(--border);}
+  .ledger-tab{flex:1;padding:10px;text-align:center;font-size:.82rem;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all var(--transition);}
+  .ledger-tab.active{color:var(--navy);border-bottom-color:var(--navy);}
+  .ledger-panel{display:none;padding:0 16px 12px;}
+  .ledger-panel.active{display:block;}
+  .ledger-empty{text-align:center;color:var(--text3);padding:20px 0;font-size:.85rem;}
+
+  /* Bulk select toolbar */
+  .bulk-toolbar{display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+  .bulk-left{display:flex;align-items:center;gap:10px;}
+  .bulk-checkbox{width:17px;height:17px;accent-color:var(--navy);cursor:pointer;}
+  .bulk-label{font-size:.8rem;color:var(--text2);font-weight:500;}
+  .bulk-del-btn{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:none;background:var(--red-bg);color:var(--red);font-size:.78rem;font-weight:600;cursor:pointer;transition:all var(--transition);}
+  .bulk-del-btn:hover{background:var(--red);color:#fff;}
+  .bulk-del-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .ledger-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .ledger-item:last-child{border-bottom:none;}
+  .ledger-cb{width:16px;height:16px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;}
+  .ledger-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem;}
+  .ledger-icon.exp{background:var(--red-bg);}
+  .ledger-icon.pay{background:var(--green-bg);}
+  .ledger-details{flex:1;min-width:0;}
+  .ledger-desc{font-size:.875rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ledger-date{font-size:.74rem;color:var(--text3);margin-top:2px;}
+  .ledger-amount{font-family:'Sora',sans-serif;font-weight:700;font-size:.95rem;flex-shrink:0;}
+  .ledger-amount.exp{color:var(--red);}
+  .ledger-amount.pay{color:var(--green);}
+  .ledger-del{background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;border-radius:6px;transition:color var(--transition);}
+  .ledger-del:hover{color:var(--red);}
+
+  /* ── Modals ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity var(--transition);}
+  .modal-overlay.open{opacity:1;pointer-events:all;}
+  @media(min-width:520px){.modal-overlay{align-items:center;}}
+  .modal{background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:480px;padding:24px 20px 32px;transform:translateY(40px);transition:transform var(--transition);}
+  @media(min-width:520px){.modal{border-radius:var(--radius);transform:scale(.96);}}
+  .modal-overlay.open .modal{transform:translateY(0);}
+  @media(min-width:520px){.modal-overlay.open .modal{transform:scale(1);}}
+  .modal-title{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;}
+  .modal-close{background:var(--surface2);border:none;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text2);font-size:.8rem;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:.8rem;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;}
+  .field input,.field select,.field textarea{width:100%;padding:11px 13px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:.9rem;outline:none;transition:border var(--transition);}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--navy);}
+  .radio-group{display:flex;gap:10px;}
+  .radio-option{flex:1;padding:10px;border-radius:var(--radius-sm);border:1.5px solid var(--border);text-align:center;cursor:pointer;font-size:.85rem;font-weight:600;transition:all var(--transition);}
+  .radio-option.selected{border-color:var(--navy);background:var(--navy);color:#fff;}
+
+  /* ── Export Reminder Dialog ── */
+  #export-reminder-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:700;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity var(--transition);}
+  #export-reminder-overlay.open{opacity:1;pointer-events:all;}
+  .reminder-box{background:var(--surface);border-radius:var(--radius);padding:28px 24px;max-width:400px;width:100%;text-align:center;}
+  .reminder-icon{font-size:2.8rem;margin-bottom:12px;}
+  .reminder-title{font-family:'Sora',sans-serif;font-size:1.15rem;font-weight:800;margin-bottom:8px;color:var(--navy);}
+  [data-theme="dark"] .reminder-title{color:var(--accent2);}
+  .reminder-msg{font-size:.875rem;color:var(--text2);line-height:1.6;margin-bottom:8px;}
+  .reminder-sub{font-size:.78rem;color:var(--text3);margin-bottom:22px;}
+  .reminder-btns{display:flex;flex-direction:column;gap:10px;}
+  .reminder-countdown{font-size:.75rem;color:var(--text3);margin-top:10px;}
+
+  /* ── Settings Panel ── */
+  #settings-panel{position:fixed;inset:0;z-index:400;background:var(--bg);transform:translateX(100%);transition:transform var(--transition);overflow-y:auto;}
+  #settings-panel.open{transform:translateX(0);}
+  .settings-header{background:var(--navy);padding:16px;display:flex;align-items:center;gap:12px;color:#fff;}
+  .settings-header h2{font-family:'Sora',sans-serif;font-size:1.05rem;}
+  .settings-back{background:rgba(255,255,255,0.1);border:none;color:#fff;border-radius:8px;padding:8px;cursor:pointer;display:flex;}
+  .settings-body{padding:20px 16px;max-width:480px;margin:0 auto;}
+  .settings-section{margin-bottom:24px;}
+  .settings-section h3{font-size:.75rem;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:12px;}
+  .settings-item{background:var(--surface);border-radius:var(--radius-sm);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;border:1px solid var(--border);}
+  .settings-item-label{font-size:.9rem;font-weight:500;}
+  .settings-item-sub{font-size:.78rem;color:var(--text3);margin-top:2px;}
+  .toggle{width:46px;height:26px;border-radius:13px;background:var(--border);position:relative;cursor:pointer;transition:background var(--transition);flex-shrink:0;border:none;}
+  .toggle.on{background:var(--green);}
+  .toggle::after{content:'';width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:transform var(--transition);box-shadow:0 1px 4px rgba(0,0,0,0.2);}
+  .toggle.on::after{transform:translateX(20px);}
+
+  /* ── Toast ── */
+  #toast-container{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}
+  .toast{background:var(--navy);color:#fff;padding:12px 20px;border-radius:40px;font-size:.875rem;font-weight:500;box-shadow:var(--shadow-lg);animation:toastIn .3s ease;pointer-events:none;}
+  .toast.success{background:var(--green);}
+  .toast.error{background:var(--red);}
+  .toast.info{background:var(--blue);}
+  @keyframes toastIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ── Confirm ── */
+  #confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:800;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity var(--transition);padding:20px;}
+  #confirm-overlay.open{opacity:1;pointer-events:all;}
+  .confirm-box{background:var(--surface);border-radius:var(--radius);padding:24px 22px;max-width:360px;width:100%;}
+  .confirm-title{font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;margin-bottom:8px;}
+  .confirm-msg{font-size:.875rem;color:var(--text2);margin-bottom:20px;line-height:1.5;}
+  .confirm-btns{display:flex;gap:10px;}
+
+  /* ── Monthly Summary ── */
+  #monthly-summary{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:20px;}
+  #monthly-summary h3{font-family:'Sora',sans-serif;font-size:.95rem;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .ms-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:.875rem;}
+  .ms-row:last-child{border-bottom:none;}
+  .ms-label{color:var(--text2);}
+  .ms-row.total{font-weight:700;font-family:'Sora',sans-serif;}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+  /* Undo bar */
+  #undo-bar{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--navy2);color:#fff;padding:10px 20px;border-radius:40px;font-size:.85rem;display:none;align-items:center;gap:12px;z-index:500;box-shadow:var(--shadow-lg);}
+  #undo-bar button{background:rgba(255,255,255,0.2);border:none;color:#fff;padding:4px 12px;border-radius:20px;cursor:pointer;font-size:.82rem;font-family:'DM Sans',sans-serif;}
+  #undo-bar.visible{display:flex;}
+
+  /* ── Footer ── */
+  #footer{background:var(--navy);color:rgba(255,255,255,0.6);text-align:center;padding:20px 16px;font-size:.78rem;line-height:1.8;margin-top:auto;}
+  #footer strong{color:#fff;font-weight:600;}
+  #footer a{color:var(--accent2);text-decoration:none;font-weight:600;}
+  #footer a:hover{text-decoration:underline;}
+  .footer-divider{margin:6px 0;opacity:.3;}
+
+  @media(min-width:520px){#main{padding:20px;}}
+</style>
+</head>
+<body>
+
+<!-- PIN Screen -->
+<div id="pin-screen">
+  <div class="pin-logo">Baki <span>Khata</span></div>
+  <div id="pin-subtitle" class="pin-subtitle">Enter your PIN to continue</div>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="pin-error" id="pin-error"></div>
+  <div class="pin-keypad">
+    <button class="pin-key" data-k="1">1</button>
+    <button class="pin-key" data-k="2">2</button>
+    <button class="pin-key" data-k="3">3</button>
+    <button class="pin-key" data-k="4">4</button>
+    <button class="pin-key" data-k="5">5</button>
+    <button class="pin-key" data-k="6">6</button>
+    <button class="pin-key" data-k="7">7</button>
+    <button class="pin-key" data-k="8">8</button>
+    <button class="pin-key" data-k="9">9</button>
+    <button class="pin-key zero" data-k="0">0</button>
+    <button class="pin-key del" data-k="del">⌫</button>
+  </div>
+</div>
+
+<!-- Top Bar -->
+<div id="topbar">
+  <div class="tb-logo">Baki <span>Khata</span></div>
+  <div class="tb-search">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="search-input" placeholder="Search stores, items…"/>
+  </div>
+  <div class="tb-actions">
+    <button class="tb-btn" id="dark-toggle" title="Toggle dark mode">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <button class="tb-btn" id="settings-btn" title="Settings">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Storage Warning -->
+<div id="storage-warning">
+  <div class="sw-icon">⚠️</div>
+  <div class="sw-text">
+    <strong>Important: Your data lives in your browser only</strong>
+    All Baki Khata data is stored in your browser's localStorage (limited to ~5 MB). Clearing your browser cache, cookies, or site data will permanently delete all your records. To keep your data safe, export to Excel or PDF regularly — especially before clearing your browser.
+  </div>
+</div>
+
+<!-- Balance Banner -->
+<div id="balance-banner">
+  <div class="bb-card">
+    <div class="bb-label">Total Expenses</div>
+    <div class="bb-value red" id="bb-expenses">৳0</div>
+  </div>
+  <div class="bb-card">
+    <div class="bb-label">Total Paid</div>
+    <div class="bb-value green" id="bb-paid">৳0</div>
+  </div>
+  <div class="bb-card">
+    <div class="bb-label">Outstanding</div>
+    <div class="bb-value" id="bb-due">৳0</div>
+  </div>
+  <div class="bb-card">
+    <div class="bb-label">Stores</div>
+    <div class="bb-value blue" id="bb-stores">0</div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div id="main">
+  <div id="month-bar">
+    <select class="month-select" id="month-select"><option value="">All Time</option></select>
+    <div class="filter-tag active" id="filter-all" onclick="setFilter('all')">All</div>
+    <div class="filter-tag" id="filter-due" onclick="setFilter('due')">🔴 Due</div>
+    <div class="filter-tag" id="filter-paid" onclick="setFilter('paid')">🟢 Paid</div>
+  </div>
+
+  <div id="action-bar">
+    <button class="btn btn-primary btn-full" onclick="openModal('store-modal')">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      Add Store
+    </button>
+    <button class="btn btn-outline btn-full" onclick="openExportModal()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export Data
+    </button>
+  </div>
+
+  <div id="monthly-summary" style="display:none;"></div>
+  <div id="stores-container"></div>
+  <div id="empty-state" style="text-align:center;padding:40px 20px;display:none;">
+    <div style="font-size:3rem;margin-bottom:12px;">🏪</div>
+    <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:1.1rem;margin-bottom:6px;">No stores yet</div>
+    <div style="color:var(--text3);font-size:.875rem;">Add your first store to start tracking expenses</div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer id="footer">
+  <div>© <strong>Baki Khata</strong> 2026 — Hall Expense Tracker</div>
+  <hr class="footer-divider"/>
+  <div>Developed by <a href="https://shakib-mahamud.vercel.app" target="_blank" rel="noopener">Shakib Mahamud</a></div>
+</footer>
+
+<!-- ── MODALS ── -->
+
+<!-- Add Store -->
+<div class="modal-overlay" id="store-modal">
+  <div class="modal">
+    <div class="modal-title">Add New Store <button class="modal-close" onclick="closeModal('store-modal')">✕ Close</button></div>
+    <div class="field"><label>Store Name</label><input type="text" id="store-name-input" placeholder="e.g. Campus Canteen, Book Shop…"/></div>
+    <button class="btn btn-primary" style="width:100%" onclick="addStore()">Add Store</button>
+  </div>
+</div>
+
+<!-- Add Expense -->
+<div class="modal-overlay" id="expense-modal">
+  <div class="modal">
+    <div class="modal-title"><span id="expense-modal-title">Add Expense</span><button class="modal-close" onclick="closeModal('expense-modal')">✕ Close</button></div>
+    <input type="hidden" id="expense-store-id"/>
+    <div class="field"><label>Amount (৳)</label><input type="number" id="expense-amount" placeholder="0.00" min="0" step="0.01"/></div>
+    <div class="field"><label>Description (optional)</label><input type="text" id="expense-desc" placeholder="What did you buy?"/></div>
+    <div class="field"><label>Date</label><input type="date" id="expense-date"/></div>
+    <button class="btn btn-primary" style="width:100%" onclick="addExpense()">Add Expense</button>
+  </div>
+</div>
+
+<!-- Pay -->
+<div class="modal-overlay" id="pay-modal">
+  <div class="modal">
+    <div class="modal-title"><span id="pay-modal-title">Make Payment</span><button class="modal-close" onclick="closeModal('pay-modal')">✕ Close</button></div>
+    <input type="hidden" id="pay-store-id"/>
+    <div class="field">
+      <label>Payment Type</label>
+      <div class="radio-group">
+        <div class="radio-option selected" id="pay-full-opt" onclick="selectPayType('full')">Full Payment</div>
+        <div class="radio-option" id="pay-partial-opt" onclick="selectPayType('partial')">Partial</div>
+      </div>
+    </div>
+    <div class="field" id="pay-amount-field" style="display:none;">
+      <label>Amount (৳)</label>
+      <input type="number" id="pay-amount" placeholder="0.00" min="0" step="0.01"/>
+    </div>
+    <div class="field"><label>Date</label><input type="date" id="pay-date"/></div>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;font-size:.875rem;">
+      <span style="color:var(--text3);">Outstanding balance: </span>
+      <span id="pay-balance-display" style="font-family:'Sora',sans-serif;font-weight:700;color:var(--red);"></span>
+    </div>
+    <button class="btn btn-green" style="width:100%" onclick="addPayment()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Confirm Payment
+    </button>
+  </div>
+</div>
+
+<!-- Export -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal">
+    <div class="modal-title">Export Data <button class="modal-close" onclick="closeModal('export-modal')">✕ Close</button></div>
+    <p style="font-size:.82rem;color:var(--text3);margin-bottom:4px;">Files are saved to your browser's default Downloads folder. For best organisation, move them to a <strong>Baki Khata</strong> folder in your file manager.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+      <button class="btn btn-outline btn-full" style="justify-content:flex-start;gap:12px" onclick="exportExcel()">
+        <span style="font-size:1.3rem;">📊</span>
+        <div style="text-align:left"><div style="font-weight:600">Export to Excel (.xlsx)</div><div style="font-size:.78rem;color:var(--text3);font-weight:400">Full data — all stores, expenses, payments</div></div>
+      </button>
+      <button class="btn btn-outline btn-full" style="justify-content:flex-start;gap:12px" onclick="exportPDF()">
+        <span style="font-size:1.3rem;">📄</span>
+        <div style="text-align:left"><div style="font-weight:600">Export Summary PDF</div><div style="font-size:.78rem;color:var(--text3);font-weight:400">Store-wise breakdown with balances</div></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Change PIN -->
+<div class="modal-overlay" id="change-pin-modal">
+  <div class="modal">
+    <div class="modal-title">Change PIN<button class="modal-close" onclick="closeModal('change-pin-modal')">✕ Close</button></div>
+    <div class="field"><label>Current PIN</label><input type="password" id="old-pin" maxlength="4" placeholder="••••" inputmode="numeric"/></div>
+    <div class="field"><label>New PIN</label><input type="password" id="new-pin" maxlength="4" placeholder="••••" inputmode="numeric"/></div>
+    <div class="field"><label>Confirm New PIN</label><input type="password" id="confirm-pin" maxlength="4" placeholder="••••" inputmode="numeric"/></div>
+    <div id="change-pin-error" style="color:var(--red);font-size:.82rem;margin-bottom:10px;"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="changePIN()">Update PIN</button>
+  </div>
+</div>
+
+<!-- Export Reminder Dialog -->
+<div id="export-reminder-overlay">
+  <div class="reminder-box">
+    <div class="reminder-icon">📤</div>
+    <div class="reminder-title">Time to Back Up Your Data!</div>
+    <div class="reminder-msg">It's been 7 days since your last export. Your Baki Khata data is stored only in your browser — if you clear your cache or switch devices, it will be lost permanently.</div>
+    <div class="reminder-sub">Please export your data before adding new entries to keep a safe backup.</div>
+    <div class="reminder-btns">
+      <button class="btn btn-primary btn-full" onclick="reminderExportExcel()">
+        📊 Export to Excel (Recommended)
+      </button>
+      <button class="btn btn-outline btn-full" onclick="reminderExportPDF()">
+        📄 Export PDF Summary
+      </button>
+      <button class="btn btn-danger btn-full" onclick="dismissReminder()">
+        Skip for Now (Not Recommended)
+      </button>
+    </div>
+    <div class="reminder-countdown" id="reminder-days"></div>
+  </div>
+</div>
+
+<!-- Settings Panel -->
+<div id="settings-panel">
+  <div class="settings-header">
+    <button class="settings-back" onclick="closeSettings()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    </button>
+    <h2>Settings</h2>
+  </div>
+  <div class="settings-body">
+    <div class="settings-section">
+      <h3>Appearance</h3>
+      <div class="settings-item">
+        <div><div class="settings-item-label">Dark Mode</div><div class="settings-item-sub">Switch to dark theme</div></div>
+        <button class="toggle" id="dark-mode-toggle" onclick="toggleDark()"></button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Security</h3>
+      <div class="settings-item" onclick="openModal('change-pin-modal')" style="cursor:pointer;">
+        <div><div class="settings-item-label">Change PIN</div><div class="settings-item-sub">Update your 4-digit access PIN</div></div>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Data & Export</h3>
+      <div class="settings-item" style="cursor:pointer;" onclick="exportExcel()">
+        <div><div class="settings-item-label">Export Excel</div><div class="settings-item-sub">Download all data as .xlsx</div></div>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </div>
+      <div class="settings-item" style="cursor:pointer;" onclick="exportPDF()">
+        <div><div class="settings-item-label">Export PDF</div><div class="settings-item-sub">Download summary report</div></div>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </div>
+      <div class="settings-item" style="cursor:pointer;" onclick="confirmReset()">
+        <div><div class="settings-item-label" style="color:var(--red)">Reset All Data</div><div class="settings-item-sub">Delete all stores, expenses, payments</div></div>
+        <svg width="16" height="16" fill="none" stroke="var(--red)" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>About</h3>
+      <div class="settings-item">
+        <div>
+          <div class="settings-item-label">Baki Khata</div>
+          <div class="settings-item-sub">Hall Expense Tracker — v2.0</div>
+          <div class="settings-item-sub" style="margin-top:4px;">By <a href="https://shakib-mahamud.vercel.app" target="_blank" style="color:var(--accent);font-weight:600;text-decoration:none;">Shakib Mahamud</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Undo Bar -->
+<div id="undo-bar">
+  <span id="undo-msg">Action can be undone</span>
+  <button onclick="doUndo()">Undo</button>
+</div>
+
+<!-- Confirm Dialog -->
+<div id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirm-title">Are you sure?</div>
+    <div class="confirm-msg" id="confirm-msg">This action cannot be undone.</div>
+    <div class="confirm-btns">
+      <button class="btn btn-outline" style="flex:1" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" style="flex:1" id="confirm-ok-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════
+const $=id=>document.getElementById(id);
+const fmt=n=>'৳'+Number(n||0).toFixed(2);
+const today=()=>new Date().toISOString().split('T')[0];
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+function hashPIN(pin){
+  let h=0;for(let c of String(pin)){h=((h<<5)-h)+c.charCodeAt(0);h|=0;}
+  return h.toString(36);
+}
+
+// ══════════════════════════════════════
+//  STORAGE
+// ══════════════════════════════════════
+function loadData(){return JSON.parse(localStorage.getItem('bk_stores')||'[]');}
+function saveData(d){localStorage.setItem('bk_stores',JSON.stringify(d));}
+function loadSettings(){return JSON.parse(localStorage.getItem('bk_settings')||'{}');}
+function saveSettings(s){localStorage.setItem('bk_settings',JSON.stringify(s));}
+
+// ══════════════════════════════════════
+//  EXPORT REMINDER (7-day check)
+// ══════════════════════════════════════
+const REMINDER_KEY='bk_last_export';
+const REMINDER_DAYS=7;
+let reminderPending=false;
+
+function checkExportReminder(){
+  const last=localStorage.getItem(REMINDER_KEY);
+  if(!last){
+    // First time — set today as baseline, no reminder
+    localStorage.setItem(REMINDER_KEY, Date.now().toString());
+    return;
+  }
+  const daysSince=(Date.now()-parseInt(last))/(1000*60*60*24);
+  if(daysSince>=REMINDER_DAYS){
+    reminderPending=true;
+    showExportReminder(daysSince);
+  }
+}
+
+function showExportReminder(daysSince){
+  const d=Math.floor(daysSince);
+  $('reminder-days').textContent=`Last export was ${d} day${d!==1?'s':''} ago.`;
+  $('export-reminder-overlay').classList.add('open');
+}
+
+function reminderExportExcel(){
+  exportExcel(true);
+  closeReminder();
+}
+function reminderExportPDF(){
+  exportPDF(null,true);
+  closeReminder();
+}
+function dismissReminder(){
+  closeReminder();
+  toast('Remember to export soon to keep your data safe!','info');
+}
+function closeReminder(){
+  $('export-reminder-overlay').classList.remove('open');
+  reminderPending=false;
+}
+
+// ══════════════════════════════════════
+//  PIN SYSTEM
+// ══════════════════════════════════════
+let pinBuffer='',pinMode='verify',pinFirst='';
+
+function initPIN(){
+  const s=loadSettings();
+  if(!s.pin){pinMode='setup';showPinSetup();}
+  else{pinMode='verify';$('pin-subtitle').textContent='Enter your PIN to continue';}
+}
+function showPinSetup(){
+  $('pin-subtitle').innerHTML='<div class="pin-setup-label">Welcome! Set a 4-digit PIN to secure your data.</div>';
+}
+
+document.querySelectorAll('.pin-key').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const k=btn.dataset.k;
+    if(k==='del'){pinBuffer=pinBuffer.slice(0,-1);}
+    else if(pinBuffer.length<4){pinBuffer+=k;}
+    updatePinDots();
+    if(pinBuffer.length===4)setTimeout(processPIN,120);
+  });
+});
+
+function updatePinDots(){
+  for(let i=0;i<4;i++) $('d'+i).classList.toggle('filled',i<pinBuffer.length);
+}
+
+function processPIN(){
+  const s=loadSettings();
+  if(pinMode==='setup'){
+    pinFirst=pinBuffer;pinBuffer='';updatePinDots();
+    pinMode='setup2';$('pin-subtitle').textContent='Confirm your PIN';return;
+  }
+  if(pinMode==='setup2'){
+    if(pinBuffer!==pinFirst){
+      $('pin-error').textContent='PINs do not match. Try again.';
+      pinBuffer='';pinFirst='';pinMode='setup';updatePinDots();showPinSetup();return;
+    }
+    s.pin=hashPIN(pinBuffer);saveSettings(s);pinBuffer='';
+    $('pin-error').textContent='';unlockApp();return;
+  }
+  if(pinMode==='verify'){
+    if(hashPIN(pinBuffer)===s.pin){
+      pinBuffer='';$('pin-error').textContent='';unlockApp();
+    }else{
+      $('pin-error').textContent='Incorrect PIN. Try again.';
+      pinBuffer='';updatePinDots();
+    }
+  }
+}
+
+function unlockApp(){
+  $('pin-screen').classList.add('hidden');
+  init();
+}
+
+function changePIN(){
+  const s=loadSettings();
+  const oldRaw=$('old-pin').value,newRaw=$('new-pin').value,confRaw=$('confirm-pin').value;
+  $('change-pin-error').textContent='';
+  if(hashPIN(oldRaw)!==s.pin){$('change-pin-error').textContent='Current PIN is incorrect.';return;}
+  if(newRaw.length!==4||!/^\d{4}$/.test(newRaw)){$('change-pin-error').textContent='New PIN must be 4 digits.';return;}
+  if(newRaw!==confRaw){$('change-pin-error').textContent='New PINs do not match.';return;}
+  s.pin=hashPIN(newRaw);saveSettings(s);
+  closeModal('change-pin-modal');
+  $('old-pin').value='';$('new-pin').value='';$('confirm-pin').value='';
+  toast('PIN updated','success');
+}
+
+// ══════════════════════════════════════
+//  CORE DATA FUNCTIONS
+// ══════════════════════════════════════
+function calculateBalance(store){
+  const totalExp=store.expenses.reduce((s,e)=>s+(+e.amount||0),0);
+  const totalPay=store.payments.reduce((s,p)=>s+(+p.amount||0),0);
+  return{totalExp,totalPay,balance:totalExp-totalPay};
+}
+
+function addStore(){
+  const name=$('store-name-input').value.trim();
+  if(!name){toast('Please enter a store name','error');return;}
+  const stores=loadData();
+  stores.push({id:uid(),name,expenses:[],payments:[],createdAt:today()});
+  saveData(stores);$('store-name-input').value='';
+  closeModal('store-modal');render();toast(`"${name}" added`,'success');
+}
+
+function addExpense(){
+  const storeId=$('expense-store-id').value;
+  const amount=parseFloat($('expense-amount').value);
+  const desc=$('expense-desc').value.trim();
+  const date=$('expense-date').value;
+  if(!amount||amount<=0){toast('Enter a valid amount','error');return;}
+  if(!date){toast('Pick a date','error');return;}
+  const stores=loadData();
+  const st=stores.find(s=>s.id===storeId);if(!st)return;
+  const entry={id:uid(),amount,description:desc,date};
+  setUndo({type:'restore',stores:JSON.stringify(stores)});
+  st.expenses.push(entry);saveData(stores);
+  closeModal('expense-modal');
+  $('expense-amount').value='';$('expense-desc').value='';
+  render();toast(`Expense of ${fmt(amount)} added`,'success');
+}
+
+function addPayment(){
+  const storeId=$('pay-store-id').value;
+  const stores=loadData();const st=stores.find(s=>s.id===storeId);if(!st)return;
+  const{balance}=calculateBalance(st);
+  let amount=payType==='full'?balance:parseFloat($('pay-amount').value);
+  if(!amount||amount<=0){toast('Enter a valid amount','error');return;}
+  if(amount>balance+0.001){toast('Amount exceeds outstanding balance','error');return;}
+  const date=$('pay-date').value;if(!date){toast('Pick a date','error');return;}
+  const entry={id:uid(),amount,date};
+  setUndo({type:'restore',stores:JSON.stringify(stores)});
+  st.payments.push(entry);saveData(stores);
+  closeModal('pay-modal');$('pay-amount').value='';
+  render();toast(`Payment of ${fmt(amount)} recorded`,'success');
+}
+
+function deleteExpense(storeId,expId){
+  showConfirm('Delete Expense','Are you sure you want to delete this expense?',()=>{
+    const stores=loadData();const st=stores.find(s=>s.id===storeId);if(!st)return;
+    setUndo({type:'restore',stores:JSON.stringify(stores)});
+    st.expenses=st.expenses.filter(e=>e.id!==expId);
+    saveData(stores);render();toast('Expense deleted');
+  });
+}
+
+function deletePayment(storeId,payId){
+  showConfirm('Delete Payment','Are you sure you want to delete this payment?',()=>{
+    const stores=loadData();const st=stores.find(s=>s.id===storeId);if(!st)return;
+    setUndo({type:'restore',stores:JSON.stringify(stores)});
+    st.payments=st.payments.filter(p=>p.id!==payId);
+    saveData(stores);render();toast('Payment deleted');
+  });
+}
+
+// ── Bulk delete expenses ──
+function bulkDeleteExpenses(storeId){
+  const checks=document.querySelectorAll(`.exp-cb-${storeId}:checked`);
+  if(!checks.length){toast('Select at least one expense','error');return;}
+  const ids=[...checks].map(c=>c.dataset.id);
+  showConfirm(`Delete ${ids.length} Expense${ids.length>1?'s':''}`,`This will permanently delete ${ids.length} selected expense${ids.length>1?'s':''}.`,()=>{
+    const stores=loadData();const st=stores.find(s=>s.id===storeId);if(!st)return;
+    setUndo({type:'restore',stores:JSON.stringify(stores)});
+    st.expenses=st.expenses.filter(e=>!ids.includes(e.id));
+    saveData(stores);render();toast(`${ids.length} expense${ids.length>1?'s':''} deleted`,'error');
+  });
+}
+
+function toggleSelectAllExpenses(storeId,checked){
+  document.querySelectorAll(`.exp-cb-${storeId}`).forEach(cb=>cb.checked=checked);
+  updateBulkBtn(storeId);
+}
+
+function updateBulkBtn(storeId){
+  const anyChecked=!!document.querySelector(`.exp-cb-${storeId}:checked`);
+  const btn=document.getElementById(`bulk-del-btn-${storeId}`);
+  const allCb=document.getElementById(`select-all-cb-${storeId}`);
+  if(btn){btn.disabled=!anyChecked;}
+  if(allCb){
+    const all=document.querySelectorAll(`.exp-cb-${storeId}`);
+    const checked=document.querySelectorAll(`.exp-cb-${storeId}:checked`);
+    allCb.indeterminate=checked.length>0&&checked.length<all.length;
+    allCb.checked=all.length>0&&checked.length===all.length;
+  }
+}
+
+function deleteStore(storeId){
+  showConfirm('Delete Store','This will permanently delete the store and all its data.',()=>{
+    const stores=loadData();setUndo({type:'restore',stores:JSON.stringify(stores)});
+    saveData(stores.filter(s=>s.id!==storeId));render();toast('Store deleted','error');
+  });
+}
+
+function confirmReset(){
+  showConfirm('Reset All Data','This will permanently delete ALL stores, expenses, and payments. This cannot be undone.',()=>{
+    saveData([]);render();toast('All data cleared','error');
+  });
+}
+
+// ══════════════════════════════════════
+//  UNDO
+// ══════════════════════════════════════
+let undoState=null,undoTimer=null;
+function setUndo(state){
+  undoState=state;$('undo-msg').textContent='Last action can be undone';
+  $('undo-bar').classList.add('visible');clearTimeout(undoTimer);
+  undoTimer=setTimeout(()=>{$('undo-bar').classList.remove('visible');undoState=null;},6000);
+}
+function doUndo(){
+  if(!undoState)return;
+  saveData(JSON.parse(undoState.stores));render();toast('Action undone','info');
+  $('undo-bar').classList.remove('visible');undoState=null;
+}
+
+// ══════════════════════════════════════
+//  FILTERS
+// ══════════════════════════════════════
+let activeFilter='all',activeMonth='';
+function setFilter(f){
+  activeFilter=f;
+  ['all','due','paid'].forEach(x=>$('filter-'+x).classList.toggle('active',x===f));
+  render();
+}
+function filterByMonth(stores,month){
+  if(!month)return stores;
+  return stores.map(st=>({
+    ...st,
+    expenses:st.expenses.filter(e=>e.date&&e.date.startsWith(month)),
+    payments:st.payments.filter(p=>p.date&&p.date.startsWith(month))
+  }));
+}
+function populateMonthSelect(){
+  const stores=loadData();const months=new Set();
+  stores.forEach(st=>{
+    st.expenses.forEach(e=>{if(e.date)months.add(e.date.slice(0,7));});
+    st.payments.forEach(p=>{if(p.date)months.add(p.date.slice(0,7));});
+  });
+  const sel=$('month-select');const cur=sel.value;
+  sel.innerHTML='<option value="">All Time</option>';
+  [...months].sort((a,b)=>b.localeCompare(a)).forEach(m=>{
+    const[y,mo]=m.split('-');
+    const label=new Date(y,mo-1,1).toLocaleString('default',{month:'long',year:'numeric'});
+    sel.innerHTML+=`<option value="${m}">${label}</option>`;
+  });
+  if(cur)sel.value=cur;
+}
+$('month-select').addEventListener('change',()=>{activeMonth=$('month-select').value;render();});
+$('search-input').addEventListener('input',()=>render());
+
+// ══════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════
+const COLORS=['#e8834a','#1a6fa8','#2d8c5e','#8b5cf6','#e8396a','#0891b2','#c9821a','#374151'];
+function storeColor(idx){return COLORS[idx%COLORS.length];}
+let openStores=new Set(),activeTabs={};
+
+function render(){
+  const raw=loadData();
+  const search=$('search-input').value.toLowerCase().trim();
+  const monthFiltered=filterByMonth(raw,activeMonth);
+
+  // Monthly summary
+  if(activeMonth){
+    const ms=$('monthly-summary');ms.style.display='block';
+    let totExp=0,totPay=0;
+    monthFiltered.forEach(st=>{
+      totExp+=st.expenses.reduce((s,e)=>s+(+e.amount||0),0);
+      totPay+=st.payments.reduce((s,p)=>s+(+p.amount||0),0);
+    });
+    const bal=totExp-totPay;
+    const[y,mo]=activeMonth.split('-');
+    const label=new Date(y,mo-1,1).toLocaleString('default',{month:'long',year:'numeric'});
+    ms.innerHTML=`
+      <h3>📅 Summary for ${label}</h3>
+      <div class="ms-row"><span class="ms-label">Total Expenses</span><span style="color:var(--red);font-family:'Sora',sans-serif;font-weight:700;">${fmt(totExp)}</span></div>
+      <div class="ms-row"><span class="ms-label">Total Payments</span><span style="color:var(--green);font-family:'Sora',sans-serif;font-weight:700;">${fmt(totPay)}</span></div>
+      <div class="ms-row total"><span>Outstanding Balance</span><span style="color:${bal>0?'var(--red)':'var(--green)'};">${fmt(bal)}</span></div>`;
+  }else{$('monthly-summary').style.display='none';}
+
+  // Global totals
+  const allStores=loadData();let gExp=0,gPay=0;
+  allStores.forEach(st=>{const b=calculateBalance(st);gExp+=b.totalExp;gPay+=b.totalPay;});
+  const gDue=gExp-gPay;
+  $('bb-expenses').textContent=fmt(gExp);$('bb-paid').textContent=fmt(gPay);
+  $('bb-due').textContent=fmt(gDue);
+  $('bb-due').className='bb-value '+(gDue>0?'red':'green');
+  $('bb-stores').textContent=allStores.length;
+
+  // Filter + search
+  let stores=monthFiltered;
+  if(search) stores=stores.filter(st=>st.name.toLowerCase().includes(search)||st.expenses.some(e=>e.description&&e.description.toLowerCase().includes(search)));
+  if(activeFilter==='due') stores=stores.filter(st=>calculateBalance(st).balance>0.001);
+  if(activeFilter==='paid') stores=stores.filter(st=>calculateBalance(st).balance<=0.001);
+
+  const container=$('stores-container');
+  container.innerHTML='';
+  $('empty-state').style.display=stores.length===0?'block':'none';
+
+  stores.forEach(st=>{
+    const{totalExp,totalPay,balance}=calculateBalance(st);
+    const isPaid=balance<=0.001;
+    const isOpen=openStores.has(st.id);
+    const tab=activeTabs[st.id]||'expenses';
+    const initials=st.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const color=storeColor(allStores.findIndex(s=>s.id===st.id));
+
+    const expItems=st.expenses.slice().sort((a,b)=>b.date.localeCompare(a.date));
+    const payItems=st.payments.slice().sort((a,b)=>b.date.localeCompare(a.date));
+
+    // Expense list with bulk select
+    let expHTML='';
+    if(expItems.length===0){
+      expHTML='<div class="ledger-empty">No expenses recorded</div>';
+    }else{
+      expHTML=`
+        <div class="bulk-toolbar">
+          <div class="bulk-left">
+            <input type="checkbox" class="bulk-checkbox" id="select-all-cb-${st.id}"
+              onchange="toggleSelectAllExpenses('${st.id}',this.checked)" title="Select all"/>
+            <span class="bulk-label">Select All</span>
+          </div>
+          <button class="bulk-del-btn" id="bulk-del-btn-${st.id}" disabled onclick="bulkDeleteExpenses('${st.id}')">
+            🗑 Delete Selected
+          </button>
+        </div>`;
+      expHTML+=expItems.map(e=>`
+        <div class="ledger-item">
+          <input type="checkbox" class="ledger-cb exp-cb-${st.id}" data-id="${e.id}"
+            onchange="updateBulkBtn('${st.id}')"/>
+          <div class="ledger-icon exp">🛒</div>
+          <div class="ledger-details">
+            <div class="ledger-desc">${e.description||'Expense'}</div>
+            <div class="ledger-date">${formatDate(e.date)}</div>
+          </div>
+          <div class="ledger-amount exp">${fmt(e.amount)}</div>
+          <button class="ledger-del" onclick="deleteExpense('${st.id}','${e.id}')" title="Delete">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>`).join('');
+    }
+
+    // Payment list
+    const payHTML=payItems.length===0
+      ?'<div class="ledger-empty">No payments recorded</div>'
+      :payItems.map(p=>`
+        <div class="ledger-item">
+          <div class="ledger-icon pay">💳</div>
+          <div class="ledger-details">
+            <div class="ledger-desc">Payment</div>
+            <div class="ledger-date">${formatDate(p.date)}</div>
+          </div>
+          <div class="ledger-amount pay">${fmt(p.amount)}</div>
+          <button class="ledger-del" onclick="deletePayment('${st.id}','${p.id}')" title="Delete">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>`).join('');
+
+    // Action buttons — full width
+    const payBtn=!isPaid?`<button class="store-action-btn sab-pay" onclick="openPayModal('${st.id}','${escAttr(st.name)}',${balance})">💳 Pay</button>`:'';
+    const actionsClass=isPaid?'store-actions no-pay':'store-actions';
+
+    const card=document.createElement('div');
+    card.className='store-card'+(isOpen?' open':'');
+    card.innerHTML=`
+      <div class="store-header" onclick="toggleStore('${st.id}')">
+        <div class="store-avatar" style="background:${color}">${initials}</div>
+        <div class="store-info">
+          <div class="store-name">${st.name}</div>
+          <div class="store-meta">${st.expenses.length} expense${st.expenses.length!==1?'s':''} · ${st.payments.length} payment${st.payments.length!==1?'s':''}</div>
+        </div>
+        <div class="store-balance-pill ${isPaid?'pill-paid':'pill-due'}">${isPaid?'✓ Cleared':fmt(balance)+' due'}</div>
+        <svg class="store-chevron" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="store-body">
+        <div class="store-stats">
+          <div class="stat-box"><div class="stat-label">Expenses</div><div class="stat-value" style="color:var(--red)">${fmt(totalExp)}</div></div>
+          <div class="stat-box"><div class="stat-label">Paid</div><div class="stat-value" style="color:var(--green)">${fmt(totalPay)}</div></div>
+          <div class="stat-box"><div class="stat-label">Balance</div><div class="stat-value" style="color:${isPaid?'var(--green)':'var(--red)'}">${fmt(balance)}</div></div>
+        </div>
+        <div class="${actionsClass}">
+          <button class="store-action-btn sab-expense" onclick="openExpenseModal('${st.id}','${escAttr(st.name)}')">➕ Expense</button>
+          ${payBtn}
+          <button class="store-action-btn sab-pdf" onclick="exportStorePDF('${st.id}')">📄 PDF</button>
+          <button class="store-action-btn sab-del" onclick="deleteStore('${st.id}')">🗑 Delete</button>
+        </div>
+        <div class="ledger-tabs">
+          <div class="ledger-tab${tab==='expenses'?' active':''}" onclick="setTab('${st.id}','expenses')">Expenses (${st.expenses.length})</div>
+          <div class="ledger-tab${tab==='payments'?' active':''}" onclick="setTab('${st.id}','payments')">Payments (${st.payments.length})</div>
+        </div>
+        <div class="ledger-panel${tab==='expenses'?' active':''}" id="lp-exp-${st.id}">${expHTML}</div>
+        <div class="ledger-panel${tab==='payments'?' active':''}" id="lp-pay-${st.id}">${payHTML}</div>
+      </div>`;
+    container.appendChild(card);
+  });
+
+  populateMonthSelect();
+}
+
+function escAttr(s){return s.replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+function formatDate(d){if(!d)return'';const[y,m,day]=d.split('-');return`${day}/${m}/${y}`;}
+function toggleStore(id){if(openStores.has(id))openStores.delete(id);else openStores.add(id);render();}
+function setTab(storeId,tab){activeTabs[storeId]=tab;render();}
+
+// ══════════════════════════════════════
+//  MODALS
+// ══════════════════════════════════════
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(o=>{
+  o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});
+});
+
+let payType='full';
+function openExpenseModal(storeId,name){
+  $('expense-store-id').value=storeId;
+  $('expense-modal-title').textContent=`Add Expense — ${name}`;
+  $('expense-date').value=today();
+  openModal('expense-modal');setTimeout(()=>$('expense-amount').focus(),100);
+}
+function openPayModal(storeId,name,balance){
+  $('pay-store-id').value=storeId;
+  $('pay-modal-title').textContent=`Pay — ${name}`;
+  $('pay-date').value=today();
+  $('pay-balance-display').textContent=fmt(balance);
+  payType='full';
+  $('pay-full-opt').classList.add('selected');$('pay-partial-opt').classList.remove('selected');
+  $('pay-amount-field').style.display='none';openModal('pay-modal');
+}
+function selectPayType(t){
+  payType=t;
+  $('pay-full-opt').classList.toggle('selected',t==='full');
+  $('pay-partial-opt').classList.toggle('selected',t==='partial');
+  $('pay-amount-field').style.display=t==='partial'?'block':'none';
+  if(t==='partial')setTimeout(()=>$('pay-amount').focus(),100);
+}
+function openExportModal(){openModal('export-modal');}
+
+// ══════════════════════════════════════
+//  CONFIRM
+// ══════════════════════════════════════
+let confirmCb=null;
+function showConfirm(title,msg,cb){
+  $('confirm-title').textContent=title;$('confirm-msg').textContent=msg;
+  confirmCb=cb;$('confirm-overlay').classList.add('open');
+}
+function closeConfirm(){$('confirm-overlay').classList.remove('open');confirmCb=null;}
+$('confirm-ok-btn').addEventListener('click',()=>{if(confirmCb)confirmCb();closeConfirm();});
+$('confirm-overlay').addEventListener('click',e=>{if(e.target===$('confirm-overlay'))closeConfirm();});
+
+// ══════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════
+function toast(msg,type=''){
+  const t=document.createElement('div');
+  t.className='toast'+(type?' '+type:'');t.textContent=msg;
+  $('toast-container').appendChild(t);setTimeout(()=>t.remove(),3000);
+}
+
+// ══════════════════════════════════════
+//  SETTINGS & DARK MODE
+// ══════════════════════════════════════
+$('settings-btn').addEventListener('click',()=>$('settings-panel').classList.add('open'));
+function closeSettings(){$('settings-panel').classList.remove('open');}
+function toggleDark(){const s=loadSettings();s.dark=!s.dark;saveSettings(s);applyTheme(s.dark);}
+function applyTheme(dark){
+  document.documentElement.setAttribute('data-theme',dark?'dark':'');
+  const t=$('dark-mode-toggle');if(t)t.classList.toggle('on',dark);
+}
+$('dark-toggle').addEventListener('click',()=>{const s=loadSettings();s.dark=!s.dark;saveSettings(s);applyTheme(s.dark);});
+
+// ══════════════════════════════════════
+//  EXPORT — EXCEL
+// ══════════════════════════════════════
+function exportExcel(fromReminder=false){
+  if(!fromReminder)closeModal('export-modal');
+  const stores=loadData();
+  const wb=XLSX.utils.book_new();
+
+  // Summary sheet
+  const summaryData=[['Store','Total Expenses (৳)','Total Payments (৳)','Balance (৳)','Status']];
+  stores.forEach(st=>{
+    const{totalExp,totalPay,balance}=calculateBalance(st);
+    summaryData.push([st.name,totalExp.toFixed(2),totalPay.toFixed(2),balance.toFixed(2),balance<=0.001?'Cleared':'Due']);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(summaryData),'Summary');
+
+  // Per-store sheets
+  stores.forEach(st=>{
+    const rows=[['Date','Type','Description','Amount (৳)']];
+    st.expenses.forEach(e=>rows.push([e.date,'Expense',e.description||'',e.amount]));
+    st.payments.forEach(p=>rows.push([p.date,'Payment','',p.amount]));
+    rows.sort((a,b)=>String(b[0]).localeCompare(String(a[0])));
+    const sheetName=st.name.slice(0,30).replace(/[\\/?*\[\]:]/g,'');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),sheetName);
+  });
+
+  // File named with "Baki Khata" prefix for easy folder organisation
+  XLSX.writeFile(wb,'Baki_Khata_Export_'+today()+'.xlsx');
+  localStorage.setItem(REMINDER_KEY,Date.now().toString());
+  toast('Excel exported — save it to your Baki Khata folder!','success');
+}
+
+// ══════════════════════════════════════
+//  EXPORT — PDF
+// ══════════════════════════════════════
+async function exportPDF(storeId=null,fromReminder=false){
+  if(!fromReminder)closeModal('export-modal');
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const stores=storeId?loadData().filter(s=>s.id===storeId):loadData();
+
+  doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(26,39,68);
+  doc.text('Baki Khata — Expense Report',14,20);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(130,130,160);
+  doc.text('Generated: '+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),14,28);
+  doc.text('shakib-mahamud.vercel.app',14,34);
+
+  const summaryRows=stores.map(st=>{
+    const{totalExp,totalPay,balance}=calculateBalance(st);
+    return[st.name,'৳'+totalExp.toFixed(2),'৳'+totalPay.toFixed(2),'৳'+balance.toFixed(2),balance<=0.001?'✓ Cleared':'Due'];
+  });
+  doc.autoTable({
+    startY:40,head:[['Store','Expenses','Paid','Balance','Status']],body:summaryRows,
+    theme:'striped',headStyles:{fillColor:[26,39,68],textColor:255,fontStyle:'bold'},
+    alternateRowStyles:{fillColor:[245,243,239]},styles:{fontSize:10,cellPadding:4}
+  });
+
+  let y=doc.lastAutoTable.finalY+12;
+  stores.forEach(st=>{
+    if(y>250){doc.addPage();y=20;}
+    const{totalExp,totalPay,balance}=calculateBalance(st);
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(26,39,68);
+    doc.text(st.name,14,y);y+=6;
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(90,90,114);
+    doc.text(`Expenses: ৳${totalExp.toFixed(2)}  |  Paid: ৳${totalPay.toFixed(2)}  |  Balance: ৳${balance.toFixed(2)}`,14,y);y+=5;
+    const rows=[
+      ...st.expenses.map(e=>[e.date,'Expense',e.description||'—','৳'+Number(e.amount).toFixed(2)]),
+      ...st.payments.map(p=>[p.date,'Payment','—','৳'+Number(p.amount).toFixed(2)])
+    ].sort((a,b)=>b[0].localeCompare(a[0]));
+    if(rows.length){
+      doc.autoTable({
+        startY:y,head:[['Date','Type','Description','Amount']],body:rows,theme:'grid',
+        headStyles:{fillColor:[232,131,74],textColor:255,fontStyle:'bold'},
+        styles:{fontSize:9,cellPadding:3},margin:{left:14,right:14}
+      });
+      y=doc.lastAutoTable.finalY+10;
+    }else{doc.text('No transactions',14,y);y+=10;}
+  });
+
+  // Footer on each page
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);doc.setFontSize(8);doc.setTextColor(160,160,180);
+    doc.text(`Baki Khata — Page ${i} of ${pageCount}`,14,290);
+    doc.text('shakib-mahamud.vercel.app',145,290);
+  }
+
+  doc.save('Baki_Khata_Report_'+today()+'.pdf');
+  localStorage.setItem(REMINDER_KEY,Date.now().toString());
+  toast('PDF exported — save it to your Baki Khata folder!','success');
+}
+
+function exportStorePDF(storeId){exportPDF(storeId);}
+
+// ══════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════
+function init(){
+  const s=loadSettings();
+  applyTheme(s.dark);
+  render();
+  // Check 7-day export reminder after a short delay
+  setTimeout(checkExportReminder,800);
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
+    closeConfirm();$('export-reminder-overlay').classList.remove('open');
+  }
+});
+
+initPIN();
+</script>
+</body>
+</html>
